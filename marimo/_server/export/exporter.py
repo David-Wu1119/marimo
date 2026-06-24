@@ -15,6 +15,7 @@ from marimo._config.config import (
     DEFAULT_CONFIG,
     DisplayConfig,
     MarimoConfig,
+    PartialMarimoConfig,
     SharingConfig,
 )
 from marimo._config.settings import GLOBAL_SETTINGS
@@ -399,6 +400,7 @@ class Exporter:
         session_snapshot: NotebookSessionV1 | None = None,
         notebook_snapshot: NotebookV1 | None = None,
         sharing_config: SharingConfig | None = None,
+        enable_cache_cells: bool = False,
     ) -> tuple[str, str]:
         """Export notebook as a WASM-powered standalone HTML file."""
         index_html = get_html_contents()
@@ -408,13 +410,24 @@ class Exporter:
         # Remove autosave
         config["save"]["autosave"] = "off"
 
+        # When caches are bundled with the export, enable cell caching in the
+        # browser kernel so it restores them (fetching from public/cache/)
+        # rather than re-executing every cell.
+        # `cache_cells` is read dynamically (not a declared RuntimeConfig
+        # key), so cast past the TypedDict.
+        config_overrides: PartialMarimoConfig = (
+            cast(PartialMarimoConfig, {"runtime": {"cache_cells": True}})
+            if enable_cache_cells
+            else {}
+        )
+
         html = wasm_notebook_template(
             html=index_html,
             version=__version__,
             filename=filename,
             mode=mode,
             user_config=config,
-            config_overrides={},
+            config_overrides=config_overrides,
             app_config=app.config,
             code=code,
             asset_url=asset_url,

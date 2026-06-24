@@ -264,6 +264,12 @@ async def test_run_until_completion_with_console_output(
     )
 
 
+# NOTE: the kernel-level "cell caching populates + dumps an export manifest"
+# path is covered once the cache_cells lifecycle (PR #9895) lands. Here the
+# gate (CacheCallbacks) and the dump/bundle mechanics are unit-tested in
+# tests/_save/loaders/test_cache_export.py and tests/_cli/test_export_cache_bundle.py.
+
+
 # WASM export
 
 
@@ -292,6 +298,30 @@ async def test_export_wasm(mode: str, expected_mode_in_content: str) -> None:
     assert filename == "notebook.wasm.html"
     assert "alert(" in content
     assert expected_mode_in_content in content
+
+
+async def test_export_wasm_enable_cache_cells_toggles_browser_config() -> None:
+    """`enable_cache_cells` turns on cell caching in the exported browser
+    config so the in-browser kernel restores bundled caches instead of
+    recomputing. Off by default."""
+    internal_app = _load_fixture_app("basic")
+    file_manager = AppFileManager.from_app(internal_app)
+    exporter = Exporter()
+
+    def _export(enable: bool) -> str:
+        content, _ = exporter.export_as_wasm(
+            filename=file_manager.filename,
+            app=file_manager.app,
+            display_config=DEFAULT_CONFIG["display"],
+            mode="run",
+            code=file_manager.app.to_py(),
+            show_code=True,
+            enable_cache_cells=enable,
+        )
+        return content
+
+    assert '"cache_cells": true' in _export(enable=True)
+    assert '"cache_cells": true' not in _export(enable=False)
 
 
 async def test_export_html_with_layout(tmp_path: Path) -> None:
